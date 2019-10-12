@@ -1,0 +1,40 @@
+Run the same program over and over with different args without worrying about escaping.
+
+Script format:
+The first line is ignored.
+The second line is the number of arguments (including the constant arguments) that will be passed to the executable. Add one to this number too, so the minimum value is 2 if running a program with only one argument.
+The third line is the full path of the executable.
+The lines directly after that are the arguments. For the dynamic arguments, simply write "$n", with n starting at 0. If you wanted the first argument at this position, you'd write "$0" without quotes. If you mess up the index, everything is ruined. For constant arguments, just type them.
+From here until the end of the file, just type your dynamic argument sets. Each dynamic argument goes on its own line. The number of dynamic arguments you write per set is determined by your command format. If your highest dynamic insertion was "$4", you would type 5 arguments for each set because the indices are 0 based.
+There is no divider or anything between sets, just do them back to back.
+
+<ignored line. Type whatever you want.>
+<number of command arguments + 1>
+<full path to executable>
+<arg 1>
+<arg 2>
+<arg n>
+<dynamic argument #0 for first run>
+<dynamic argument #1 for first run>
+<dynamic argument #n for first run>
+<dynamic argument #0 for second run>
+<dynamic argument #1 for second run>
+<dynamic argument #n for second run>
+
+Script that downloads files from the supplied url to the supplied destination:
+this_is_the_ignored_line
+4
+/usr/bin/wget
+$0
+-O
+$1
+https://file-examples.com/wp-content/uploads/2017/10/file_example_JPG_100kB.jpg
+/tmp/a.jpg
+https://sample-videos.com/img/Sample-jpg-image-50kb.jpg
+/tmp/b.jpg
+
+Tip:
+Send SIGUSR1 to quit after the current command finishes. However, only send it once. Sending it again will interrupt waitpid and then quit.
+You can pass --nullDelim to say that the following scripts will use NULL (00) as the deliminator instead of a newline character (0A). Allows you to pass arguments with line breaks inside them. This setting will stay until the program encounters --newlineDelim, which will switch back to newline character deliminator for the scripts after it.
+Because the first line of the script is ignored, you can write "#!/usr/local/bin/commandRepeatScript" to make the script easily executable. If you want to do this will a script that uses NULL as the deliminator, you'll have to make a wrapper script which passes the required command line argument.
+Pass -v to toggle useless nonsense printing to stdout. It is disabled by default, so passing this once will enable it. Like the other behavior modifying arguments, it can be passed between script arguments.
