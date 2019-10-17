@@ -122,9 +122,13 @@ void runScript(FILE* fp){
 		}
 	}
 	_commandList[_mainCommandSize]=NULL; // null terminated array
-	if (_numInsertions==0){
+	if (_numInsertions==0 || _mainCommandSize==0){
 		fputs("??? - no insertions makes this program useless.\n",stderr);
 		goto free;
+	}
+	if (access(_commandList[0],F_OK|X_OK)!=0){
+		printf("%s permission denied\n",_commandList[0]);
+		exit(1);
 	}
 
 	// Read and do commands
