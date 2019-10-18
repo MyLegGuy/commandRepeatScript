@@ -34,7 +34,8 @@ https://sample-videos.com/img/Sample-jpg-image-50kb.jpg
 /tmp/b.jpg
 
 Tip:
-Send SIGUSR1 to quit after the current command finishes. However, only send it once. Sending it again will interrupt waitpid and then quit.
+Send SIGUSR1 to quit after the current command finishes. However, only send it once. Sending it again will interrupt waitpid and then quit. If -v or -V is used, the zero based index of the command that just completed will be printed.
 You can pass --nullDelim to say that the following scripts will use NULL (00) as the deliminator instead of a newline character (0A). Allows you to pass arguments with line breaks inside them. This setting will stay until the program encounters --newlineDelim, which will switch back to newline character deliminator for the scripts after it.
 Because the first line of the script is ignored, you can write "#!/usr/local/bin/commandRepeatScript" to make the script easily executable. If you want to do this will a script that uses NULL as the deliminator, you'll have to make a wrapper script which passes the required command line argument.
-Pass -v to toggle useless nonsense printing to stdout. It is disabled by default, so passing this once will enable it. Like the other behavior modifying arguments, it can be passed between script arguments.
+Pass -V to toggle useless nonsense printing to stdout. It is disabled by default, so passing this once will enable it. Like the other behavior modifying arguments, it can be passed between script arguments. -v will print some useless things, but not too many. It is a good option.
+Pass -s <num> to start the script at the specified zero based index.

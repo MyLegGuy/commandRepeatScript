@@ -11,17 +11,17 @@
 
 // Set these to 0 to disable useless output to stdout
 #define NEWLINESEPARATE 0
-#define PRINTCOMMANDBEFORE 1
-#define HAPPY 1
-#define PRINTSCRIPTNAME 1
 
 #define NULLDELIMFLAG "--nullDelim"
 #define NEWLINEDELIMFLAG "--newlineDelim"
 #define VERBOSETOGGLE "-v"
+#define SUPERVERBOSETOGGLE "-V"
+#define STARTDEFINEFLAG "-s"
 
 volatile sig_atomic_t shouldHappyExit=0;
 int lineDelim='\n';
 char uselessInfo=0;
+char reallyUselessInfo=0;
 
 // Catch SIGUSR1
 static void happyExitCatch(const int signo){
@@ -49,7 +49,7 @@ char getExitStatus(int _exitInfo){
 	}
 }
 char runProgram(char* const _args[], char _showOutput){
-	if (uselessInfo){
+	if (reallyUselessInfo){
 		char** _tempArgs=(char**)_args;
 		while(_tempArgs[0]){
 			printf("%s ",_tempArgs[0]);
@@ -83,7 +83,8 @@ char runProgram(char* const _args[], char _showOutput){
 		return getExitStatus(_exitInfo);
 	}
 }
-void runScript(FILE* fp){
+char runScript(FILE* fp, int _startIndex){
+	char _ret=0;
 	char* _tempLineBuff=NULL;
 	size_t _tempLineBuffSize=0;
 	// skip the first line by just reading and ignoring its contents
@@ -134,6 +135,21 @@ void runScript(FILE* fp){
 	// Read and do commands
 	int _numDifferentArgs=_maxMapDigit+1;
 	char** _lastReadArgs = malloc(sizeof(char*)*_numDifferentArgs);
+	int _curCommandIndex=0;
+	// fast forward to start index of requested
+	for (;_curCommandIndex<_startIndex;++_curCommandIndex){
+		for (i=0;i<_numDifferentArgs;++i){
+			while(1){
+				int _gottenChar = fgetc(fp);
+				if (_gottenChar==EOF){
+					puts("read error when trying to find start index. is index too far?");
+					exit(1);
+				}else if (_gottenChar==lineDelim){
+					break;
+				}
+			}
+		}
+	}
 	while(!feof(fp)){
 		for (i=0;i<_numDifferentArgs;++i){
 			size_t _readChars = getdelim(&_tempLineBuff,&_tempLineBuffSize,lineDelim,fp);
@@ -163,10 +179,12 @@ void runScript(FILE* fp){
 		#endif
 		if (shouldHappyExit){
 			if (uselessInfo){
-				puts("happy exit");
+				printf("happy exit at index %d\n",_curCommandIndex);
+				_ret=1;
 			}
 			break;
 		}
+		++_curCommandIndex;
 	}
 	free(_lastReadArgs);
 	if (uselessInfo){
@@ -184,10 +202,11 @@ free:
 	free(_argMap);
 	free(_commandList);
 	free(_tempLineBuff);
+	return _ret;
 }
 int main(int argc, char** args){
 	if (argc<2){
-		fprintf(stderr,"Usage: %s [-v] ["NULLDELIMFLAG" / "NEWLINEDELIMFLAG"] <script 1> [script ...]\n",argc>=1 ? args[0] : "<program>");
+		fprintf(stderr,"Usage: %s [-V/-v] [-s <num>] ["NULLDELIMFLAG" / "NEWLINEDELIMFLAG"] <script 1> [script ...]\n",argc>=1 ? args[0] : "<program>");
 		return 1;
 	}
 	// Catch SIGUSR1. Use it as a signal to finish up before exiting
@@ -198,6 +217,7 @@ int main(int argc, char** args){
 	// Run passed scripts
 	int _nonScriptArgs=0;
 	int i;
+	int _startIndex=0;
 	for (i=1;i<argc;++i){
 		if (strcmp(args[i],NULLDELIMFLAG)==0){
 			lineDelim='\0';
@@ -209,15 +229,34 @@ int main(int argc, char** args){
 			continue;
 		}else if (strcmp(args[i],VERBOSETOGGLE)==0){
 			uselessInfo=!uselessInfo;
+			reallyUselessInfo=0;
 			++_nonScriptArgs;
 			continue;
+		}else if (strcmp(args[i],SUPERVERBOSETOGGLE)==0){
+			reallyUselessInfo=!reallyUselessInfo;
+			uselessInfo=reallyUselessInfo;
+			++_nonScriptArgs;
+			continue;
+		}else if (strcmp(args[i],STARTDEFINEFLAG)==0){
+			if (i!=argc-1){
+				++i;
+				_nonScriptArgs+=2;
+				_startIndex=atoi(args[i]);
+				continue;
+			}else{
+				puts(STARTDEFINEFLAG" needs an arg.");
+				exit(1);
+			}
 		}
 		if (uselessInfo){
 			printf("Running script: %s (%d/%d)\n",args[i],i-_nonScriptArgs,argc-1-_nonScriptArgs);
 		}
 		FILE* fp = fopen(args[i],"rb");
 		if (fp){
-			runScript(fp);
+			if (runScript(fp,_startIndex)){
+				i=argc;
+			}
+			_startIndex=0;
 		}else{
 			fprintf(stderr,"Could not open %s\n",args[i]);
 			return 1;
