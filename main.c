@@ -154,7 +154,7 @@ char runScript(FILE* fp, int _startIndex){
 		for (i=0;i<_numDifferentArgs;++i){
 			size_t _readChars = getdelim(&_tempLineBuff,&_tempLineBuffSize,lineDelim,fp);
 			if (_readChars==-1){
-				fputs("error reading!\n",stderr);
+				fprintf(stderr,"error reading at set index %d\n",_curCommandIndex);
 				exit(1);
 			}
 			rmNewline(_tempLineBuff,_readChars);
@@ -166,7 +166,7 @@ char runScript(FILE* fp, int _startIndex){
 		}
 		// execute
 		if (runProgram(_commandList,1)){
-			fputs("program failed!\n",stderr);
+			fprintf(stderr,"program failed at set index %d\n",_curCommandIndex);
 			exit(1);
 		}
 		// free
