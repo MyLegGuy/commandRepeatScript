@@ -18,6 +18,8 @@
 #define SUPERVERBOSETOGGLE "-V"
 #define STARTDEFINEFLAG "-s"
 
+#define PROP_SKIP_COMMAND_FORMAT_INDEX 1
+
 volatile sig_atomic_t shouldHappyExit=0;
 int lineDelim='\n';
 char uselessInfo=0;
@@ -83,6 +85,13 @@ char runProgram(char* const _args[], char _showOutput){
 		return getExitStatus(_exitInfo);
 	}
 }
+int readNumberLine(FILE* fp, char** _tempLineBuff, size_t* _tempLineBuffSize){
+	if (getdelim(_tempLineBuff,_tempLineBuffSize,lineDelim,fp)==-1){
+		fputs("failed to read number line\n",stderr);
+		exit(1);
+	}
+	return atoi(*_tempLineBuff);
+}
 char runScript(FILE* fp, int _startIndex){
 	char _ret=0;
 	char* _tempLineBuff=NULL;
@@ -92,53 +101,69 @@ char runScript(FILE* fp, int _startIndex){
 		fputs("error reading the ignored line!\n",stderr);
 		exit(1);
 	}
-	// Read initial command
-	if (getdelim(&_tempLineBuff,&_tempLineBuffSize,lineDelim,fp)==-1){
-		fputs("failed to read first command line, count\n",stderr);
-		exit(1);
-	}
-	int _mainCommandSize = atoi(_tempLineBuff);
-	char** _commandList = malloc(sizeof(char*)*(_mainCommandSize+1));
-	int* _argMap = malloc(sizeof(int)*_mainCommandSize*2); // pattern with two byte info: <int destination index to put in _commandList> <int source index from _lastReadArgs>
-	int _numInsertions=0; // use this to find how much of _argMap to read
-	int _maxMapDigit=-1;
-	int i;
-	for (i=0;i<_mainCommandSize;++i){
-		size_t _readChars = getdelim(&_tempLineBuff,&_tempLineBuffSize,lineDelim,fp);
-		if (_readChars==-1){
-			fputs("Failed to read line when parsing command\n",stderr);
+	// second line, script properties line
+	signed char _scriptProperties = readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
+	// third line, command format count
+	int _totalCommandFormats = (_scriptProperties & PROP_SKIP_COMMAND_FORMAT_INDEX) ? 1 : readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
+	// Read command formats
+	int* _commandSizes = malloc(sizeof(int)*_totalCommandFormats);
+	char*** _commandLists = malloc(sizeof(char**)*_totalCommandFormats);
+	int** _argMaps = malloc(sizeof(int*)*_totalCommandFormats);
+	int* _argCounts = malloc(sizeof(int)*_totalCommandFormats);
+	int _mostArgs=0; // most args out of any command format
+	
+	int c;
+	for (c=0;c<_totalCommandFormats;++c){
+		// Read initial command
+		int _mainCommandSize = readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
+		_commandSizes[c]=_mainCommandSize;
+		char** _commandList = malloc(sizeof(char*)*(_mainCommandSize+1));
+		_commandLists[c]=_commandList;
+		int* _argMap = malloc(sizeof(int)*_mainCommandSize*2); // pattern with two byte info: <int destination index to put in _commandList> <int source index from _lastReadArgs>
+		_argMaps[c]=_argMap;
+		int _numInsertions=0; // use this to find how much of _argMap to read
+		int _maxMapDigit=-1;
+		int i;
+		for (i=0;i<_mainCommandSize;++i){
+			size_t _readChars = getdelim(&_tempLineBuff,&_tempLineBuffSize,lineDelim,fp);
+			if (_readChars==-1){
+				fputs("Failed to read line when parsing command\n",stderr);
+				exit(1);
+			}
+			if (_tempLineBuff[0]=='$'){
+				int _insertSource = atoi(&_tempLineBuff[1]);
+				if (_insertSource>_maxMapDigit){
+					_maxMapDigit=_insertSource;
+					_argMap[_numInsertions*2]=i;
+					_argMap[_numInsertions*2+1]=_insertSource;
+					_numInsertions++;
+				}
+			}else{
+				rmNewline(_tempLineBuff,_readChars);
+				_commandList[i]=strdup(_tempLineBuff);
+			}
+		}
+		_commandList[_mainCommandSize]=NULL; // null terminated array	
+		if (access(_commandList[0],F_OK|X_OK)!=0){
+			fprintf(stderr,"%s permission denied\n",_commandList[0]);
 			exit(1);
 		}
-		if (_tempLineBuff[0]=='$'){
-			int _insertSource = atoi(&_tempLineBuff[1]);
-			if (_insertSource>_maxMapDigit){
-				_maxMapDigit=_insertSource;
-				_argMap[_numInsertions*2]=i;
-				_argMap[_numInsertions*2+1]=_insertSource;
-				_numInsertions++;
-			}
-		}else{
-			rmNewline(_tempLineBuff,_readChars);
-			_commandList[i]=strdup(_tempLineBuff);
+		_argCounts[c]=_maxMapDigit+1;
+		if (_argCounts[c]>_mostArgs){
+			_mostArgs=_argCounts[c];
 		}
 	}
-	_commandList[_mainCommandSize]=NULL; // null terminated array
-	if (_numInsertions==0 || _mainCommandSize==0){
-		fputs("??? - no insertions makes this program useless.\n",stderr);
-		goto free;
-	}
-	if (access(_commandList[0],F_OK|X_OK)!=0){
-		printf("%s permission denied\n",_commandList[0]);
-		exit(1);
-	}
 
-	// Read and do commands
-	int _numDifferentArgs=_maxMapDigit+1;
-	char** _lastReadArgs = malloc(sizeof(char*)*_numDifferentArgs);
-	int _curCommandIndex=0;
 	// fast forward to start index of requested
+	int _curCommandIndex=0;
 	for (;_curCommandIndex<_startIndex;++_curCommandIndex){
-		for (i=0;i<_numDifferentArgs;++i){
+		int _thisIndex = (_scriptProperties & PROP_SKIP_COMMAND_FORMAT_INDEX) ? 0 : readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
+		if (_thisIndex<0 || _thisIndex>=_totalCommandFormats){
+			printf("out of range index\n");
+			exit(1);
+		}
+		int i;
+		for (i=0;i<_argCounts[_thisIndex];++i){
 			while(1){
 				int _gottenChar = fgetc(fp);
 				if (_gottenChar==EOF){
@@ -150,27 +175,41 @@ char runScript(FILE* fp, int _startIndex){
 			}
 		}
 	}
+	// Read and do command sets
+	char** _lastReadArgs = malloc(sizeof(char*)*_mostArgs);
 	while(!feof(fp)){
-		for (i=0;i<_numDifferentArgs;++i){
+		int _cIndex = (_scriptProperties & PROP_SKIP_COMMAND_FORMAT_INDEX) ? 0 : readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
+		// Read arguments into the _lastReadArgs array
+		char _isScriptDone=0;
+		int i;
+		for (i=0;i<_argCounts[_cIndex];++i){
 			size_t _readChars = getdelim(&_tempLineBuff,&_tempLineBuffSize,lineDelim,fp);
 			if (_readChars==-1){
-				fprintf(stderr,"error reading at set index %d\n",_curCommandIndex);
-				exit(1);
+				if (feof(fp)){
+					_isScriptDone=1;
+					break;
+				}else{
+					fprintf(stderr,"error reading at set index %d\n",_curCommandIndex);
+					exit(1);
+				}
 			}
 			rmNewline(_tempLineBuff,_readChars);
 			_lastReadArgs[i] = strdup(_tempLineBuff);
 		}
+		if (_isScriptDone){
+			break;
+		}
 		// insert read special arguments into usual arguments array
-		for (i=0;i<_numInsertions;++i){
-			_commandList[_argMap[i*2]]=_lastReadArgs[_argMap[i*2+1]];
+		for (i=0;i<_argCounts[_cIndex];++i){
+			_commandLists[_cIndex][_argMaps[_cIndex][i*2]]=_lastReadArgs[_argMaps[_cIndex][i*2+1]];
 		}
 		// execute
-		if (runProgram(_commandList,1)){
+		if (runProgram(_commandLists[_cIndex],1)){
 			fprintf(stderr,"program failed at set index %d\n",_curCommandIndex);
 			exit(1);
 		}
 		// free
-		for (i=0;i<_numDifferentArgs;++i){
+		for (i=0;i<_argCounts[_cIndex];++i){
 			free(_lastReadArgs[i]);
 		}
 		//
@@ -192,15 +231,24 @@ char runScript(FILE* fp, int _startIndex){
 	}
 free:
 	// free the command list
-	// first set the already freed dynamic argument strings that are still inside _commandList to NULL
-	for (i=0;i<_numInsertions;++i){
-		_commandList[_argMap[i*2]]=NULL;
+	for (c=0;c<_totalCommandFormats;++c){
+		int i;
+		// first set the already freed dynamic argument strings that are still inside _commandList to NULL
+		for (i=0;i<_argCounts[c];++i){
+			_commandLists[c][_argMaps[c][i*2]]=NULL;
+		}
+		for (i=0;i<_commandSizes[c];++i){
+			free(_commandLists[c][i]);
+		}
+		free(_commandLists[c]);
 	}
-	for (i=0;i<_mainCommandSize;++i){
-		free(_commandList[i]);
+	free(_commandLists);
+	for (c=0;c<_totalCommandFormats;++c){
+		free(_argMaps[c]);
 	}
-	free(_argMap);
-	free(_commandList);
+	free(_argMaps);
+	free(_commandSizes);
+	free(_argCounts);	
 	free(_tempLineBuff);
 	return _ret;
 }
