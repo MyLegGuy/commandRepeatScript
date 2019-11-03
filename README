@@ -2,36 +2,57 @@ Run the same program over and over with different args without worrying about es
 
 Script format:
 The first line is ignored.
-The second line is the number of arguments (including the constant arguments) that will be passed to the executable. Add one to this number too, so the minimum value is 2 if running a program with only one argument.
-The third line is the full path of the executable.
-The lines directly after that are the arguments. For the dynamic arguments, simply write "$n", with n starting at 0. If you wanted the first argument at this position, you'd write "$0" without quotes. If you mess up the index, everything is ruined. For constant arguments, just type them.
-From here until the end of the file, just type your dynamic argument sets. Each dynamic argument goes on its own line. The number of dynamic arguments you write per set is determined by your command format. If your highest dynamic insertion was "$4", you would type 5 arguments for each set because the indices are 0 based.
+The second line is the script properties number. 0 is default properties
+The third line is the number of different usable command formats
+for {i=0;i<usableCommandFormatCount;i++}
+	a line with the number of arguments (including the constant arguments) that will be passed to the executable. Add one to this number too, so the minimum value is 2 if running a program with only one argument.
+	the full path of the executable.
+	The lines directly after that are the arguments. For the dynamic arguments, simply write "$n", with n starting at 0. If you wanted the first argument at this position, you'd write "$0" without quotes. If you mess up the index, everything is ruined. For constant arguments, just type them.
+From here until the end of the file, just type your dynamic argument sets. Each set starts out with a zero-based number indicating which command format to use. Then, each dynamic argument goes on its own line. The number of dynamic arguments you write per set is determined by your command format. If your highest dynamic insertion was "$4", you would type 5 arguments for each set because the indices are 0 based.
 There is no divider or anything between sets, just do them back to back.
 
 <ignored line. Type whatever you want.>
-<number of command arguments + 1>
-<full path to executable>
-<arg 1>
-<arg 2>
-<arg n>
+<script properties number. 0 for default>
+<number of usable command formats>
+<number of command arguments for format #1, + 1>
+<full path to executable #1>
+<arg 1 for command format #1>
+<arg 2 for command format #1>
+<arg n for command format #1>
+<number of command arguments for format n, + 1>
+<full path to executable n>
+<arg 1 for command format n>
+<arg 2 for command format n>
+<arg n for command format n>
+<zero based command format index for argument set #1>
 <dynamic argument #0 for first run>
 <dynamic argument #1 for first run>
 <dynamic argument #n for first run>
+<zero based command format index for argument set #2>
 <dynamic argument #0 for second run>
 <dynamic argument #1 for second run>
 <dynamic argument #n for second run>
 
-Script that downloads files from the supplied url to the supplied destination:
+Script that downloads files from the supplied url to the supplied destination and also makes folders
 this_is_the_ignored_line
+0
+2
 4
 /usr/bin/wget
 $0
 -O
 $1
+2
+/usr/bin/mkdir
+$0
+0
 https://file-examples.com/wp-content/uploads/2017/10/file_example_JPG_100kB.jpg
 /tmp/a.jpg
+0
 https://sample-videos.com/img/Sample-jpg-image-50kb.jpg
 /tmp/b.jpg
+1
+/tmp/somenewdir
 
 Tip:
 Send SIGUSR1 to quit after the current command finishes. However, only send it once. Sending it again will interrupt waitpid and then quit. If -v or -V is used, the zero based index of the command that just completed will be printed.
@@ -39,3 +60,4 @@ You can pass --nullDelim to say that the following scripts will use NULL (00) as
 Because the first line of the script is ignored, you can write "#!/usr/local/bin/commandRepeatScript" to make the script easily executable. If you want to do this will a script that uses NULL as the deliminator, you'll have to make a wrapper script which passes the required command line argument.
 Pass -V to toggle useless nonsense printing to stdout. It is disabled by default, so passing this once will enable it. Like the other behavior modifying arguments, it can be passed between script arguments. -v will print some useless things, but not too many. It is a good option.
 Pass -s <num> to start the script at the specified zero based index.
+The script properties number is a bitmap. Currently, the only property is bit 1. If bit 1 is set, the script will only use one command format. The number of command formats line at the start and command format index line before each argument set must be left out.
