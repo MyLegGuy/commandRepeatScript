@@ -19,11 +19,15 @@
 #define STARTDEFINEFLAG "-s"
 
 #define PROP_SKIP_COMMAND_FORMAT_INDEX 1
+#define PROP_CAN_FAIL 2
+// #define			  4
 
 volatile sig_atomic_t shouldHappyExit=0;
 int lineDelim='\n';
 char uselessInfo=0;
 char reallyUselessInfo=0;
+
+int curProperties=0;
 
 // Catch SIGUSR1
 static void happyExitCatch(const int signo){
@@ -86,9 +90,18 @@ char runProgram(char* const _args[], char _showOutput){
 	}
 }
 int readNumberLine(FILE* fp, char** _tempLineBuff, size_t* _tempLineBuffSize){
-	if (getdelim(_tempLineBuff,_tempLineBuffSize,lineDelim,fp)==-1){
+	size_t _numRead = getdelim(_tempLineBuff,_tempLineBuffSize,lineDelim,fp);
+	if (_numRead==-1){
 		fputs("failed to read number line\n",stderr);
 		exit(1);
+	}
+	// verify that all these characters are numbers
+	int i;
+	for (i=0;i<_numRead-1;++i){ // don't check the last character, that should be the deliminator character. if it's not the deliminator character, that means we're at EOF. this function is never used as the last line.
+		if (!((*_tempLineBuff)[i]>='0' && (*_tempLineBuff)[i]<='9')){
+			fprintf(stderr,"expected a number line, got %s\n",*_tempLineBuff);
+			exit(1);			
+		}
 	}
 	return atoi(*_tempLineBuff);
 }
@@ -102,9 +115,9 @@ char runScript(FILE* fp, int _startIndex){
 		exit(1);
 	}
 	// second line, script properties line
-	signed char _scriptProperties = readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
+	curProperties = readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
 	// third line, command format count
-	int _totalCommandFormats = (_scriptProperties & PROP_SKIP_COMMAND_FORMAT_INDEX) ? 1 : readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
+	int _totalCommandFormats = (curProperties & PROP_SKIP_COMMAND_FORMAT_INDEX) ? 1 : readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
 	// Read command formats
 	int* _commandSizes = malloc(sizeof(int)*_totalCommandFormats);
 	char*** _commandLists = malloc(sizeof(char**)*_totalCommandFormats);
@@ -157,7 +170,7 @@ char runScript(FILE* fp, int _startIndex){
 	// fast forward to start index of requested
 	int _curCommandIndex=0;
 	for (;_curCommandIndex<_startIndex;++_curCommandIndex){
-		int _thisIndex = (_scriptProperties & PROP_SKIP_COMMAND_FORMAT_INDEX) ? 0 : readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
+		int _thisIndex = (curProperties & PROP_SKIP_COMMAND_FORMAT_INDEX) ? 0 : readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
 		if (_thisIndex<0 || _thisIndex>=_totalCommandFormats){
 			printf("out of range index\n");
 			exit(1);
@@ -178,7 +191,7 @@ char runScript(FILE* fp, int _startIndex){
 	// Read and do command sets
 	char** _lastReadArgs = malloc(sizeof(char*)*_mostArgs);
 	while(!feof(fp)){
-		int _cIndex = (_scriptProperties & PROP_SKIP_COMMAND_FORMAT_INDEX) ? 0 : readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
+		int _cIndex = (curProperties & PROP_SKIP_COMMAND_FORMAT_INDEX) ? 0 : readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
 		// Read arguments into the _lastReadArgs array
 		char _isScriptDone=0;
 		int i;
