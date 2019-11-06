@@ -60,4 +60,6 @@ You can pass --nullDelim to say that the following scripts will use NULL (00) as
 Because the first line of the script is ignored, you can write "#!/usr/local/bin/commandRepeatScript" to make the script easily executable. If you want to do this will a script that uses NULL as the deliminator, you'll have to make a wrapper script which passes the required command line argument.
 Pass -V to toggle useless nonsense printing to stdout. It is disabled by default, so passing this once will enable it. Like the other behavior modifying arguments, it can be passed between script arguments. -v will print some useless things, but not too many. It is a good option.
 Pass -s <num> to start the script at the specified zero based index.
-The script properties number is a bitmap. Currently, the only property is bit 1. If bit 1 is set, the script will only use one command format. The number of command formats line at the start and command format index line before each argument set must be left out.
+The script properties number is a bitmap.
+	If bit 1 is set, the script will only use one command format. The number of command formats line at the start and command format index line before each argument set must be left out.
+	If bit 2 is set, script execution will continue regardless of the return codes from the commands.

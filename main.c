@@ -218,8 +218,14 @@ char runScript(FILE* fp, int _startIndex){
 		}
 		// execute
 		if (runProgram(_commandLists[_cIndex],1)){
-			fprintf(stderr,"program failed at set index %d\n",_curCommandIndex);
-			exit(1);
+			if (!(curProperties & PROP_CAN_FAIL)){
+				fprintf(stderr,"program failed at set index %d\n",_curCommandIndex);
+				exit(1);
+			}else{
+				if (reallyUselessInfo){
+					printf("Warning: failed.\n");
+				}
+			}
 		}
 		// free
 		for (i=0;i<_argCounts[_cIndex];++i){
