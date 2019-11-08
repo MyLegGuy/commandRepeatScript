@@ -89,11 +89,16 @@ char runProgram(char* const _args[], char _showOutput){
 		return getExitStatus(_exitInfo);
 	}
 }
-int readNumberLine(FILE* fp, char** _tempLineBuff, size_t* _tempLineBuffSize){
+int readNumberLineOrEOF(FILE* fp, char** _tempLineBuff, size_t* _tempLineBuffSize, char* _didEOF){
 	size_t _numRead = getdelim(_tempLineBuff,_tempLineBuffSize,lineDelim,fp);
 	if (_numRead==-1){
-		fputs("failed to read number line\n",stderr);
-		exit(1);
+		if (_didEOF!=NULL && feof(fp)){
+			*_didEOF=1;
+			return -1;
+		}else{
+			fputs("failed to read number line\n",stderr);
+			exit(1);
+		}
 	}
 	// verify that all these characters are numbers
 	int i;
@@ -103,7 +108,13 @@ int readNumberLine(FILE* fp, char** _tempLineBuff, size_t* _tempLineBuffSize){
 			exit(1);			
 		}
 	}
+	if (_didEOF!=NULL){
+		*_didEOF=0;
+	}
 	return atoi(*_tempLineBuff);
+}
+int readNumberLine(FILE* fp, char** _tempLineBuff, size_t* _tempLineBuffSize){
+	return readNumberLineOrEOF(fp,_tempLineBuff,_tempLineBuffSize,NULL);
 }
 char runScript(FILE* fp, int _startIndex){
 	char _ret=0;
@@ -191,28 +202,40 @@ char runScript(FILE* fp, int _startIndex){
 	// Read and do command sets
 	char** _lastReadArgs = malloc(sizeof(char*)*_mostArgs);
 	while(!feof(fp)){
-		int _cIndex = (curProperties & PROP_SKIP_COMMAND_FORMAT_INDEX) ? 0 : readNumberLine(fp,&_tempLineBuff,&_tempLineBuffSize);
-		// Read arguments into the _lastReadArgs array
 		char _isScriptDone=0;
-		int i;
-		for (i=0;i<_argCounts[_cIndex];++i){
-			size_t _readChars = getdelim(&_tempLineBuff,&_tempLineBuffSize,lineDelim,fp);
-			if (_readChars==-1){
-				if (feof(fp)){
-					_isScriptDone=1;
-					break;
-				}else{
-					fprintf(stderr,"error reading at set index %d\n",_curCommandIndex);
-					exit(1);
-				}
+		int _cIndex;
+		if (curProperties & PROP_SKIP_COMMAND_FORMAT_INDEX){
+			_cIndex=0;
+		}else{
+			char _didEOF;
+			_cIndex=readNumberLineOrEOF(fp,&_tempLineBuff,&_tempLineBuffSize,&_didEOF);
+			if (_didEOF){
+				_isScriptDone=1;
 			}
-			rmNewline(_tempLineBuff,_readChars);
-			_lastReadArgs[i] = strdup(_tempLineBuff);
+		}
+		// Read arguments into the _lastReadArgs array
+		if (!_isScriptDone){
+			int i;
+			for (i=0;i<_argCounts[_cIndex];++i){
+				size_t _readChars = getdelim(&_tempLineBuff,&_tempLineBuffSize,lineDelim,fp);
+				if (_readChars==-1){
+					if (feof(fp)){
+						_isScriptDone=1;
+						break;
+					}else{
+						fprintf(stderr,"error reading at set index %d\n",_curCommandIndex);
+						exit(1);
+					}
+				}
+				rmNewline(_tempLineBuff,_readChars);
+				_lastReadArgs[i] = strdup(_tempLineBuff);
+			}
 		}
 		if (_isScriptDone){
 			break;
 		}
 		// insert read special arguments into usual arguments array
+		int i;
 		for (i=0;i<_argCounts[_cIndex];++i){
 			_commandLists[_cIndex][_argMaps[_cIndex][i*2]]=_lastReadArgs[_argMaps[_cIndex][i*2+1]];
 		}
