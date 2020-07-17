@@ -158,10 +158,10 @@ char runScript(FILE* fp, int _startIndex){
 				int _insertSource = atoi(&_tempLineBuff[1]);
 				if (_insertSource>_maxMapDigit){
 					_maxMapDigit=_insertSource;
-					_argMap[_numInsertions*2]=i;
-					_argMap[_numInsertions*2+1]=_insertSource;
-					_numInsertions++;
 				}
+				_argMap[_numInsertions*2]=i;
+				_argMap[_numInsertions*2+1]=_insertSource;
+				_numInsertions++;
 			}else{
 				rmNewline(_tempLineBuff,_readChars);
 				_commandList[i]=strdup(_tempLineBuff);
